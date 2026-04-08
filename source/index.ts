@@ -277,7 +277,11 @@ function createMainWindow(): BrowserWindow {
 		minWidth: 400,
 		minHeight: 200,
 		alwaysOnTop: config.get('alwaysOnTop'),
-		titleBarStyle: 'default',
+		titleBarStyle: 'hiddenInset',
+		trafficLightPosition: {
+			x: 20,
+			y: 4,
+		},
 		autoHideMenuBar: config.get('autoHideMenuBar'),
 		webPreferences: {
 			preload: path.join(__dirname, 'browser.js'),
@@ -488,6 +492,35 @@ function createMainWindow(): BrowserWindow {
 			readFileSync(path.join(__dirname, 'notifications-isolated.js'), 'utf8'),
 		);
 
+		// Watch page title for unread message count and notify
+		await webContents.executeJavaScript(`
+			(function() {
+				let lastCount = 0;
+				function checkTitle() {
+					const match = document.title.match(/^\\((\\d+)\\)/);
+					const count = match ? parseInt(match[1], 10) : 0;
+					if (count > lastCount) {
+						window.postMessage({
+							type: 'notification',
+							data: {
+								id: Date.now(),
+								title: 'Messenger',
+								body: count === 1 ? 'You have a new message' : 'You have ' + count + ' new messages',
+								icon: '',
+								silent: false,
+							},
+						}, '*');
+					}
+					lastCount = count;
+				}
+				const titleEl = document.querySelector('title');
+				if (titleEl) {
+					new MutationObserver(checkTitle).observe(titleEl, { childList: true });
+				}
+				setInterval(checkTitle, 2000);
+			})();
+		`);
+
 		// Remove the Facebook top banner and fix layout
 		await webContents.executeJavaScript(`
 			(function() {
@@ -654,13 +687,18 @@ ipc.answerRenderer(
 			return;
 		}
 
-		const notification = new Notification({
+		const notificationOptions: Electron.NotificationConstructorOptions = {
 			title,
 			body: config.get('notificationMessagePreview') ? body : 'You have a new message',
 			hasReply: true,
-			icon: nativeImage.createFromDataURL(icon),
 			silent,
-		});
+		};
+
+		if (icon) {
+			notificationOptions.icon = nativeImage.createFromDataURL(icon);
+		}
+
+		const notification = new Notification(notificationOptions);
 
 		notifications.set(id, notification);
 

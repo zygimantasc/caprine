@@ -877,6 +877,17 @@ window.addEventListener('message', async ({data: {type, data}}) => {
 });
 
 function showNotification({id, title, body, icon, silent}: NotificationEvent): void {
+	if (!icon) {
+		ipc.callMain('notification', {
+			id,
+			title,
+			body,
+			icon: '',
+			silent,
+		});
+		return;
+	}
+
 	const image = new Image();
 	image.crossOrigin = 'anonymous';
 	image.src = icon;

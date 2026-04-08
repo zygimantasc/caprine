@@ -20,23 +20,28 @@ div.xat3117.xxzkxad > div {
 	height: 100vh !important;
 }
 
-/* Add OS-specific fonts */
-body {
-	font-family:
-		-apple-system,
-		BlinkMacSystemFont,
-		'Segoe UI',
-		Roboto,
-		Oxygen-Sans,
-		Ubuntu,
-		Cantarell,
-		'Helvetica Neue',
-		sans-serif,
-		'Apple Color Emoji',
-		'Segoe UI Emoji',
-		'Segoe UI Symbol' !important;
-	text-rendering: optimizelegibility !important;
-	font-feature-settings: 'liga', 'clig', 'kern';
+/* Don't override Facebook's font to avoid breaking dark theme text colors */
+
+/* Make the top area draggable for window movement (only target non-interactive areas) */
+body::before {
+	content: '';
+	display: block;
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 40px;
+	-webkit-app-region: drag;
+	z-index: 1;
+	pointer-events: none;
+}
+
+/* Fix message input text color for dark theme */
+div[role="textbox"][contenteditable="true"],
+div[role="textbox"][contenteditable="true"] span,
+div[role="textbox"][contenteditable="true"] p,
+span.x3jgonx {
+	color: #e4e6eb !important;
 }
 
 /* Don't show outline on clickable elements & input fields */
