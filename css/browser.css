@@ -51,6 +51,11 @@ span.x3jgonx {
 	outline: none !important;
 }
 
+/* Add bottom padding to match the top gap for symmetry */
+div[role="main"] {
+	padding-bottom: 15px !important;
+}
+
 /* Hide disabled scrollbar on the right side */
 body::-webkit-scrollbar {
 	display: none;

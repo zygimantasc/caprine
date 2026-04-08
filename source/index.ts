@@ -280,7 +280,7 @@ function createMainWindow(): BrowserWindow {
 		titleBarStyle: 'hiddenInset',
 		trafficLightPosition: {
 			x: 20,
-			y: 4,
+			y: 2,
 		},
 		autoHideMenuBar: config.get('autoHideMenuBar'),
 		webPreferences: {
