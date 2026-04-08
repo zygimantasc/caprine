@@ -236,7 +236,7 @@ function initRequestsFiltering(): void {
 function setUserLocale(): void {
 	const userLocale = bestFacebookLocaleFor(app.getLocale().replace('-', '_'));
 	const cookie = {
-		url: 'https://www.messenger.com/',
+		url: 'https://www.facebook.com/',
 		name: 'locale',
 		secure: true,
 		value: userLocale,
@@ -264,7 +264,7 @@ function createMainWindow(): BrowserWindow {
 	// Messenger or Work Chat
 	const mainURL = config.get('useWorkChat')
 		? 'https://work.facebook.com/chat'
-		: 'https://www.messenger.com/login/';
+		: 'https://www.facebook.com/messages/';
 
 	const win = new BrowserWindow({
 		title: app.name,
@@ -277,11 +277,7 @@ function createMainWindow(): BrowserWindow {
 		minWidth: 400,
 		minHeight: 200,
 		alwaysOnTop: config.get('alwaysOnTop'),
-		titleBarStyle: 'hiddenInset',
-		trafficLightPosition: {
-			x: 80,
-			y: 20,
-		},
+		titleBarStyle: 'default',
 		autoHideMenuBar: config.get('autoHideMenuBar'),
 		webPreferences: {
 			preload: path.join(__dirname, 'browser.js'),
@@ -492,6 +488,60 @@ function createMainWindow(): BrowserWindow {
 			readFileSync(path.join(__dirname, 'notifications-isolated.js'), 'utf8'),
 		);
 
+		// Remove the Facebook top banner and fix layout
+		await webContents.executeJavaScript(`
+			(function() {
+				function removeBanner() {
+					const banner = document.querySelector('div[role="banner"]');
+					if (banner) {
+						banner.remove();
+					}
+				}
+				removeBanner();
+				new MutationObserver(removeBanner).observe(document.body, { childList: true, subtree: true });
+
+				// Fix: override height constraints left by banner removal
+				function fixHeight() {
+					const container = document.querySelector('.xat3117.xxzkxad');
+					if (!container) return;
+					container.style.setProperty('top', '0', 'important');
+					container.style.setProperty('height', '100vh', 'important');
+					// Only fix depths 0-4 (stop before chat row elements)
+					let el = container;
+					for (let i = 0; i < 5; i++) {
+						if (!el || !el.firstElementChild) break;
+						el = el.firstElementChild;
+						const h = el.getBoundingClientRect().height;
+						if (h < window.innerHeight - 10 && h > 100) {
+							el.style.setProperty('max-height', '100vh', 'important');
+							el.style.setProperty('height', '100%', 'important');
+							el.style.setProperty('min-height', '100%', 'important');
+						}
+					}
+				}
+				setTimeout(fixHeight, 3000);
+				new MutationObserver(fixHeight).observe(document.body, { childList: true, subtree: true });
+
+				// Fix chat area (right side) height constraints
+				function fixChatHeight() {
+					const main = document.querySelector('div[role="main"]');
+					if (!main) return;
+					let el = main;
+					for (let i = 0; i < 6; i++) {
+						const r = el.getBoundingClientRect();
+						if (r.height < window.innerHeight - 10 && r.height > 100) {
+							el.style.setProperty('max-height', '100%', 'important');
+							el.style.setProperty('height', '100%', 'important');
+						}
+						if (!el.firstElementChild) break;
+						el = el.firstElementChild;
+					}
+				}
+				setTimeout(fixChatHeight, 3000);
+				new MutationObserver(fixChatHeight).observe(document.body, { childList: true, subtree: true });
+			})();
+		`);
+
 		if (is.macos) {
 			await import('./touch-bar');
 		}
@@ -532,40 +582,14 @@ function createMainWindow(): BrowserWindow {
 	});
 
 	webContents.on('will-navigate', async (event, url) => {
-		const isMessengerDotCom = (url: string): boolean => {
+		const isAllowedUrl = (url: string): boolean => {
 			const {hostname} = new URL(url);
-			return hostname.endsWith('.messenger.com');
+			return hostname.endsWith('.facebook.com')
+				|| hostname.endsWith('.workplace.com')
+				|| hostname === 'login.microsoftonline.com';
 		};
 
-		const isTwoFactorAuth = (url: string): boolean => {
-			const twoFactorAuthURL = 'https://www.facebook.com/checkpoint';
-			return url.startsWith(twoFactorAuthURL);
-		};
-
-		const isWorkChat = (url: string): boolean => {
-			const {hostname, pathname} = new URL(url);
-
-			if (hostname === 'work.facebook.com' || hostname === 'work.workplace.com') {
-				return true;
-			}
-
-			if (
-				// Example: https://company-name.facebook.com/login or
-				//   		https://company-name.workplace.com/login
-				(hostname.endsWith('.facebook.com') || hostname.endsWith('.workplace.com'))
-				&& (pathname.startsWith('/login') || pathname.startsWith('/chat'))
-			) {
-				return true;
-			}
-
-			if (hostname === 'login.microsoftonline.com') {
-				return true;
-			}
-
-			return false;
-		};
-
-		if (isMessengerDotCom(url) || isTwoFactorAuth(url) || isWorkChat(url)) {
+		if (isAllowedUrl(url)) {
 			return;
 		}
 

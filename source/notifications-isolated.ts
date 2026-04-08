@@ -77,5 +77,5 @@
 		notification,
 	);
 
-	Object.assign(window, {notification: augmentedNotification});
+	Object.assign(window, {Notification: augmentedNotification});
 })(window, Notification);
