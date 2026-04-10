@@ -874,6 +874,10 @@ window.addEventListener('message', async ({data: {type, data}}) => {
 			await selectConversation(data.previousConversation as number);
 		}
 	}
+
+	if (type === 'badge-update') {
+		ipc.callMain('update-tray-icon', data.count as number);
+	}
 });
 
 function showNotification({id, title, body, icon, silent}: NotificationEvent): void {

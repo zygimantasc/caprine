@@ -349,6 +349,13 @@ function createMainWindow(): BrowserWindow {
 		}
 	});
 
+	// Update dock badge from page title changes
+	win.on('page-title-updated', (_event, title) => {
+		const match = title.match(/^\((\d+)\)/);
+		const count = match ? parseInt(match[1], 10) : 0;
+		updateBadge(count);
+	});
+
 	win.on('resize', () => {
 		const {isMaximized} = config.get('lastWindowState');
 		config.set('lastWindowState', {...win.getNormalBounds(), isMaximized});
@@ -492,14 +499,28 @@ function createMainWindow(): BrowserWindow {
 			readFileSync(path.join(__dirname, 'notifications-isolated.js'), 'utf8'),
 		);
 
-		// Watch page title for unread message count and notify
+		// Watch page title for unread message count, notify, and update badge
 		await webContents.executeJavaScript(`
 			(function() {
-				let lastCount = 0;
+				// Capture initial count so we don't notify for existing unreads
+				const initMatch = document.title.match(/^\\((\\d+)\\)/);
+				let lastCount = initMatch ? parseInt(initMatch[1], 10) : 0;
+				let notifiedForCount = lastCount;
+				let resetTimer = null;
+				let debounceTimer = null;
+
 				function checkTitle() {
+					clearTimeout(debounceTimer);
+					debounceTimer = setTimeout(processTitle, 500);
+				}
+
+				function processTitle() {
 					const match = document.title.match(/^\\((\\d+)\\)/);
 					const count = match ? parseInt(match[1], 10) : 0;
-					if (count > lastCount) {
+
+					// Only notify when count increases from what we last saw
+					if (count > lastCount && count > notifiedForCount) {
+						notifiedForCount = count;
 						window.postMessage({
 							type: 'notification',
 							data: {
@@ -511,13 +532,27 @@ function createMainWindow(): BrowserWindow {
 							},
 						}, '*');
 					}
+
+					// Only reset after count stays at 0 for 5 seconds
+					if (count === 0) {
+						if (!resetTimer) {
+							resetTimer = setTimeout(() => {
+								notifiedForCount = 0;
+								resetTimer = null;
+							}, 5000);
+						}
+					} else {
+						clearTimeout(resetTimer);
+						resetTimer = null;
+					}
+
 					lastCount = count;
 				}
+
 				const titleEl = document.querySelector('title');
 				if (titleEl) {
 					new MutationObserver(checkTitle).observe(titleEl, { childList: true });
 				}
-				setInterval(checkTitle, 2000);
 			})();
 		`);
 
